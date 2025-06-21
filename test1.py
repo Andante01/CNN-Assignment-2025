@@ -12,6 +12,12 @@ from tensorflow.keras.callbacks import ReduceLROnPlateau
 import matplotlib.pyplot as plt
 import numpy as np
 
+# 設定matplotlib繁體中文字體顯示
+import matplotlib
+matplotlib.rcParams['font.sans-serif'] = ['Microsoft JhengHei', 'SimHei', 'DejaVu Sans']
+matplotlib.rcParams['axes.unicode_minus'] = False  # 解決負號顯示問題
+plt.rcParams['font.size'] = 12  # 設定字體大小
+
 # %%
 # Step 2: Load and Preprocess CIFAR-10 Dataset
 # CIFAR-10 contains 60,000 32x32 color images in 10 classes (e.g., airplane, cat, dog)
@@ -35,37 +41,37 @@ for i in range(9):
 plt.show()
 
 # %%
-# Step 4: Build the Enhanced CNN Model (應用三個優化策略)
+# Step 4: Build the Enhanced CNN Model (應用三個優化策略 + 增加模型容量)
 model = models.Sequential([
-    # Convolutional Layer 1: 32 filters, 3x3 kernel, ReLU activation
-    layers.Conv2D(32, (3, 3), activation='relu', input_shape=(32, 32, 3)),
+    # Convolutional Layer 1: 64 filters, 3x3 kernel, ReLU activation (增加容量)
+    layers.Conv2D(64, (3, 3), activation='relu', input_shape=(32, 32, 3)),
     layers.BatchNormalization(),  # 策略2: 正則化 - BatchNormalization
     layers.MaxPooling2D((2, 2)),
-    layers.Dropout(0.25),  # 策略1: Dropout - 卷積層後
+    layers.Dropout(0.15),  # 策略1: Dropout - 減少強度避免underfitting
     
-    # Convolutional Layer 2: 64 filters, 3x3 kernel
-    layers.Conv2D(64, (3, 3), activation='relu'),
+    # Convolutional Layer 2: 128 filters, 3x3 kernel (增加容量)
+    layers.Conv2D(128, (3, 3), activation='relu'),
     layers.BatchNormalization(),  # 策略2: 正則化 - BatchNormalization
     layers.MaxPooling2D((2, 2)),
-    layers.Dropout(0.25),  # 策略1: Dropout - 卷積層後
+    layers.Dropout(0.15),  # 策略1: Dropout - 減少強度避免underfitting
     
-    # Convolutional Layer 3: 64 filters, 3x3 kernel
-    layers.Conv2D(64, (3, 3), activation='relu'),
+    # Convolutional Layer 3: 256 filters, 3x3 kernel (增加容量)
+    layers.Conv2D(256, (3, 3), activation='relu'),
     layers.BatchNormalization(),  # 策略2: 正則化 - BatchNormalization
     
     # Flatten the output for dense layers
     layers.Flatten(),
-    layers.Dropout(0.3),  # 策略1: Dropout - Flatten後
+    layers.Dropout(0.2),  # 策略1: Dropout - 減少強度避免underfitting
     
-    # Dense Layer: 64 units with L2 regularization
-    layers.Dense(64, activation='relu', 
-                 kernel_regularizer=tf.keras.regularizers.l2(0.01)),  # 策略2: L2正則化
+    # Dense Layer: 128 units with L2 regularization (增加容量)
+    layers.Dense(128, activation='relu', 
+                 kernel_regularizer=tf.keras.regularizers.l2(0.005)),  # 策略2: 減少L2正則化強度
     layers.BatchNormalization(),  # 策略2: 正則化 - BatchNormalization
-    layers.Dropout(0.5),  # 策略1: Dropout - Dense層前
+    layers.Dropout(0.3),  # 策略1: Dropout - 減少強度避免underfitting
     
     # Output Layer: 10 units (one per class) with softmax and L2 regularization
     layers.Dense(10, activation='softmax',
-                 kernel_regularizer=tf.keras.regularizers.l2(0.01))  # 策略2: L2正則化
+                 kernel_regularizer=tf.keras.regularizers.l2(0.005))  # 策略2: 減少L2正則化強度
 ])
 
 # Display model summary
@@ -82,15 +88,15 @@ lr_scheduler = ReduceLROnPlateau(
     verbose=1
 )
 
-# 使用自定義學習率的 Adam 優化器
-optimizer = tf.keras.optimizers.Adam(learning_rate=0.002)
+# 使用自定義學習率的 Adam 優化器 (提高學習率解決underfitting)
+optimizer = tf.keras.optimizers.Adam(learning_rate=0.005)
 model.compile(optimizer=optimizer,
               loss='sparse_categorical_crossentropy',
               metrics=['accuracy'])
 
 # %%
 # Step 6: Train the Model with Callbacks (策略3: 學習率調度)
-history = model.fit(train_images, train_labels, epochs=15,  # 增加epoch數以觀察學習率調度效果
+history = model.fit(train_images, train_labels, epochs=25,  # 增加epoch數讓模型充分學習
                     validation_data=(test_images, test_labels),
                     callbacks=[lr_scheduler])  # 策略3: 添加學習率調度器
 
@@ -216,12 +222,13 @@ try:
 - 策略3 (學習率調度): 已實施 - 動態學習率調整
 
 模型架構改進:
-- 添加3個Dropout層 (0.25, 0.3, 0.5)
+- 卷積層Filter增強: 64 → 128 → 256 (vs 原本 32 → 64 → 64)
+- 添加4個Dropout層 (0.15, 0.15, 0.2, 0.3)
 - 添加4個BatchNormalization層
-- 添加L2正則化 (0.01)
+- 添加L2正則化 (0.005)
 - 使用ReduceLROnPlateau學習率調度器
-- 初始學習率: 0.002
-- 總訓練輪數: 15 epochs
+- 初始學習率: 0.005 (提升學習效率)
+- 總訓練輪數: 25 epochs
 
 性能提升預期:
 - 減少過擬合：是
@@ -250,22 +257,22 @@ print("="*60)
 
 print("\n策略1: Dropout 防過擬合")
 print("-" * 30)
-print("✓ 卷積層後添加 Dropout(0.25)")
-print("✓ Flatten後添加 Dropout(0.3)")  
-print("✓ Dense層前添加 Dropout(0.5)")
+print("✓ 卷積層後添加 Dropout(0.15, 0.15)")
+print("✓ Flatten後添加 Dropout(0.2)")  
+print("✓ Dense層前添加 Dropout(0.3)")
 print(f"✓ 過擬合差距: {overfitting_gap:.4f} (目標: <0.03)")
 
 print("\n策略2: 正則化技術")
 print("-" * 30)
 print("✓ 每個卷積層後添加 BatchNormalization")
-print("✓ Dense層添加 L2正則化 (0.01)")
+print("✓ Dense層添加 L2正則化 (0.005)")
 print("✓ Dense層後添加 BatchNormalization")
 print("✓ 穩定訓練過程，提升收斂速度")
 
 print("\n策略3: 學習率調度")
 print("-" * 30)
 print("✓ ReduceLROnPlateau 動態調整")
-print("✓ 初始學習率: 0.002")
+print("✓ 初始學習率: 0.005")
 print("✓ 監控 val_loss，patience=3")
 print("✓ 每次減少50%，最小學習率: 1e-6")
 
